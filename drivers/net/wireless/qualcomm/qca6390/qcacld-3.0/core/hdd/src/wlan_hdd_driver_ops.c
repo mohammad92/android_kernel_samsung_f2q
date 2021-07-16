@@ -581,7 +581,17 @@ static int __hdd_soc_recovery_reinit(struct device *dev,
 	}
 
 	re_init_fail_cnt = 0;
-	cds_set_recovery_in_progress(false);
+
+	/*
+	 * In case of SSR within SSR we have seen the race
+	 * where the reinit is successful and fw down is received
+	 * which sets the recovery in progress. Now as reinit is
+	 * successful we reset the recovery in progress here.
+	 * So check if FW is down then don't reset the recovery
+	 * in progress
+	 */
+	if (!qdf_is_fw_down())
+		cds_set_recovery_in_progress(false);
 
 	hdd_soc_load_unlock(dev);
 	hdd_start_complete(0);
@@ -713,7 +723,7 @@ static inline void hdd_wlan_ssr_shutdown_event(void) { }
  *
  * Return: None
  */
-static void hdd_send_hang_data(void *data, size_t data_len)
+static void hdd_send_hang_data(uint8_t *data, size_t data_len)
 {
 	enum qdf_hang_reason reason = QDF_REASON_UNSPECIFIED;
 	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
@@ -850,7 +860,6 @@ static void hdd_soc_recovery_shutdown(struct device *dev)
 	int errno;
 
 	errno = osif_psoc_sync_trans_start_wait(dev, &psoc_sync);
-	QDF_BUG(!errno);
 	if (errno)
 		return;
 
@@ -1796,7 +1805,7 @@ wlan_hdd_pld_uevent(struct device *dev, struct pld_uevent_data *event_data)
 
 		break;
 	case PLD_FW_HANG_EVENT:
-		hdd_info("Received fimrware hang event");
+		hdd_info("Received firmware hang event");
 		cds_get_recovery_reason(&reason);
 		hang_evt_data.hang_data =
 				qdf_mem_malloc(QDF_HANG_EVENT_DATA_SIZE);
@@ -1804,12 +1813,11 @@ wlan_hdd_pld_uevent(struct device *dev, struct pld_uevent_data *event_data)
 			return;
 		hang_evt_data.offset = 0;
 		qdf_hang_event_notifier_call(reason, &hang_evt_data);
+		hang_evt_data.offset = QDF_WLAN_HANG_FW_OFFSET;
 		if (event_data->hang_data.hang_event_data_len >=
 		    QDF_HANG_EVENT_DATA_SIZE / 2)
 			event_data->hang_data.hang_event_data_len =
 						QDF_HANG_EVENT_DATA_SIZE / 2;
-
-		hang_evt_data.offset = QDF_WLAN_HANG_FW_OFFSET;
 		if (event_data->hang_data.hang_event_data_len)
 			qdf_mem_copy((hang_evt_data.hang_data +
 				      hang_evt_data.offset),

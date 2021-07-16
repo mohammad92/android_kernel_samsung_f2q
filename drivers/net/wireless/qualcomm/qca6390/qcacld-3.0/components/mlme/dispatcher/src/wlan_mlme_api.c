@@ -939,8 +939,8 @@ QDF_STATUS wlan_mlme_configure_chain_mask(struct wlan_objmgr_psoc *psoc,
 			  mlme_obj->cfg.chainmask_cfg.tx_chain_mask_5g,
 			  mlme_obj->cfg.chainmask_cfg.rx_chain_mask_5g);
 
-	if (enable2x2 || !enable_bt_chain_sep || as_enabled ||
-	   (!hw_dbs_2x2_cap && dual_mac_feature != DISABLE_DBS_CXN_AND_SCAN)) {
+	if ((enable2x2 && !enable_bt_chain_sep) || as_enabled ||
+	    (!hw_dbs_2x2_cap && dual_mac_feature != DISABLE_DBS_CXN_AND_SCAN)) {
 		mlme_legacy_debug("Cannot configure chainmask to FW");
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -2101,6 +2101,9 @@ void wlan_mlme_update_oce_flags(struct wlan_objmgr_pdev *pdev)
 	go_connected_peer =
 	wlan_util_get_peer_count_for_mode(pdev, QDF_P2P_GO_MODE);
 	mlme_obj = mlme_get_psoc_ext_obj(psoc);
+
+	if (!mlme_obj)
+		return;
 
 	if (sap_connected_peer || go_connected_peer) {
 		updated_fw_value = mlme_obj->cfg.oce.feature_bitmap;
@@ -3790,16 +3793,22 @@ char *mlme_get_sub_reason_str(uint32_t sub_reason)
 	switch (sub_reason) {
 	case WMI_ROAM_TRIGGER_SUB_REASON_PERIODIC_TIMER:
 		return "PERIODIC TIMER";
-	case WMI_ROAM_TRIGGER_SUB_REASON_INACTIVITY_TIMER:
-		return "INACTIVITY TIMER";
+	case WMI_ROAM_TRIGGER_SUB_REASON_LOW_RSSI_PERIODIC:
+		return "LOW RSSI PERIODIC TIMER1";
 	case WMI_ROAM_TRIGGER_SUB_REASON_BTM_DI_TIMER:
-		return "BTM DISASSOC TIMER";
+		return "BTM DISASSOC IMMINENT TIMER";
 	case WMI_ROAM_TRIGGER_SUB_REASON_FULL_SCAN:
 		return "FULL SCAN";
-	case WMI_ROAM_TRIGGER_SUB_REASON_LOW_RSSI_PERIODIC:
-		return "LOW RSSI PERIODIC SCAN";
 	case WMI_ROAM_TRIGGER_SUB_REASON_CU_PERIODIC:
-		return "CU PERIODIC SCAN";
+		return "CU PERIODIC Timer1";
+	case WMI_ROAM_TRIGGER_SUB_REASON_INACTIVITY_TIMER_LOW_RSSI:
+		return "LOW RSSI INACTIVE TIMER";
+	case WMI_ROAM_TRIGGER_SUB_REASON_PERIODIC_TIMER_AFTER_INACTIVITY_CU:
+		return "CU PERIODIC TIMER2";
+	case WMI_ROAM_TRIGGER_SUB_REASON_PERIODIC_TIMER_AFTER_INACTIVITY_LOW_RSSI:
+		return "LOW RSSI PERIODIC TIMER2";
+	case WMI_ROAM_TRIGGER_SUB_REASON_INACTIVITY_TIMER_CU:
+		return "CU INACTIVITY TIMER";
 	default:
 		return "NONE";
 	}
